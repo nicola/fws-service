@@ -4,6 +4,7 @@ import {
 } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 // import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { expect } from "chai";
+import "@nomicfoundation/hardhat-ethers";
 import hre from "hardhat";
 
 describe("FWS", function () {
@@ -38,7 +39,21 @@ describe("FWS", function () {
       const { simplePDP, escrow, dealSLA } = await loadFixture(deployAllContractsFixture);
 
       const proofSetID = await simplePDP.create(100)
-      const emptyUpdate = await simplePDP.update(0, [], [])
+      const emptyUpdate = await simplePDP.update(proofSetID.value, [], [])
+    });
+
+    it("Lifecyle", async function () {
+      const { simplePDP, escrow, dealSLA, otherAccount, owner} = await loadFixture(deployAllContractsFixture);
+
+      const proofSetID = await simplePDP.create(100)
+      const updateWithADeal = await simplePDP.update(proofSetID.value, [], [{
+        CID: hre.ethers.encodeBytes32String("hi"),
+        client: await otherAccount.getAddress(),
+        provider: await owner.getAddress(),
+        service: await simplePDP.getAddress(),
+        dealSLA: await dealSLA.getAddress(),
+        size: 10,
+      }])
     });
   });
 
