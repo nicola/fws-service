@@ -62,11 +62,12 @@ contract Escrow {
   function remove(uint256 dealID) public {
     // TODO either the user or the provider can do this
 
+    Deal memory deal = deals[dealID]
+
     require(
-      IDeal(deals[dealID].dealSLA).canRemoveDeal(deals[dealID], dealID),
+      IDeal(deal.dealSLA).canRemoveDeal(deal, dealID),
       "Cannot remove"
     );
-    // TODO remove it from escrow
 
     delete deals[dealID];
   }
