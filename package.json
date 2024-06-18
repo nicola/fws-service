@@ -4,6 +4,7 @@
     "hardhat": "^2.22.5"
   },
   "devDependencies": {
+    "hardhat-ethernal": "^3.2.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.5"
   }

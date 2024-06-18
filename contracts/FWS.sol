@@ -2,8 +2,11 @@ pragma solidity >=0.6.12 <0.9.0;
 
 // Structs
 
+import {PoDSILib, ProofData} from "./PoDSI.sol";
+
 // -- Deal
 struct Deal {
+  bytes32 CID;
   address client;
   address provider;
   address service;
@@ -70,6 +73,10 @@ contract Escrow {
 
   function deposit() public payable {
     deposits[msg.sender] += msg.value;
+  }
+
+  function getDeal(uint256 escrowID) public view returns (Deal memory deal) {
+    return deals[escrowID];
   }
 
   function withdraw(uint256 amount) public payable {
@@ -217,11 +224,20 @@ contract SimplePDPService is ProofSetService, DealStoredOnchain {
     escrowAddress = _escrow;
   }
 
-  function prove (uint256 proofSetID, uint256 challenge) public {
+  function prove (
+    uint256 proofSetID,
+    uint256 challenge,
+    ProofData calldata proof,
+    bytes32 leaf
+  ) public {
     uint256 challengedIndex = challenge % dealsMap[proofSetID].length;
     uint256 challengedEscrowID = dealsMap[proofSetID][challengedIndex];
 
+    // TODO potentially move this into the service state
+    Deal memory deal = Escrow(escrowAddress).getDeal(challengedEscrowID);
+
     // TODO verify proof
+    require(PoDSILib.verify(proof, leaf, deal.CID), "Proof did not verify");
 
     super._onValidProof(proofSetID);
   }
