@@ -32,4 +32,14 @@ describe("FWS", function () {
       expect(await simplePDP.escrowAddress()).to.equal(await escrow.getAddress());
     });
   });
+
+  describe("SimplePDP", function () {
+    it("Should not fail an empty update", async function () {
+      const { simplePDP, escrow, dealSLA } = await loadFixture(deployAllContractsFixture);
+
+      const proofSetID = await simplePDP.create(100)
+      const emptyUpdate = await simplePDP.update(0, [], [])
+    });
+  });
+
 });

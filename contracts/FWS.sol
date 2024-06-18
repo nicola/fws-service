@@ -10,7 +10,6 @@ struct Deal {
   address client;
   address provider;
   address service;
-  uint frequency;
   address dealSLA;
   uint256 size;
 }
@@ -24,9 +23,8 @@ struct Faults {
 // -- ProofSet
 struct ProofSet {
   uint256 frequency; // how often it is proven
-  address SP;
+  address provider;
   uint256 latestProofEpoch; // epoch when the latest valid proof was received
-  Faults[] faults; // list of faults (from the lastest payment)
   address owner;
 }
 
@@ -62,7 +60,7 @@ contract Escrow {
   function remove(uint256 dealID) public {
     // TODO either the user or the provider can do this
 
-    Deal memory deal = deals[dealID]
+    Deal memory deal = deals[dealID];
 
     require(
       IDeal(deal.dealSLA).canRemoveDeal(deal, dealID),
@@ -104,22 +102,27 @@ contract ProofSetService {
   // State
   uint256 IDCounter = 0;
   mapping(uint256 ID => ProofSet) proofSets;
+  mapping(uint256 proofSetID => Faults[]) faults;
 
   // Creates a dataset to be proven
-  function create(ProofSet calldata proofSet) public returns (uint256 ID) {
-    // Create the ID
-    IDCounter++;        
+  function create(uint256 frequency) public returns (uint256 ID) {
     // Map the ID to CommD and StorageProvider
-    proofSets[ID] = proofSet;
+    proofSets[ID] = ProofSet({
+      frequency: frequency,
+      owner: msg.sender,
+      latestProofEpoch: block.number,
+      provider: msg.sender
+    });
     // Map the ID to creationEpoch
     proofSets[ID].latestProofEpoch = block.number; //this should be the function setting current epoch
     // Emit the event
     emit NewProofSet(ID);
     // Returns the ID
-    return IDCounter;
+    return IDCounter++;
   }
 
   function currentFaults (uint256 ID) public virtual view returns (uint faults) {
+    require(ID < IDCounter, "Out of boundary");
     return ((block.number - proofSets[ID].latestProofEpoch) / proofSets[ID].frequency);
   }
 
@@ -129,7 +132,7 @@ contract ProofSetService {
     uint proofsMissed = this.currentFaults(ID);
     if (proofsMissed > 0) {       
       emit FaultsEvent(ID, proofSets[ID].latestProofEpoch, proofsMissed);
-      proofSets[ID].faults.push(Faults(proofSets[ID].latestProofEpoch, block.number));
+      faults[ID].push(Faults(proofSets[ID].latestProofEpoch, block.number));
     }
 
     proofSets[ID].latestProofEpoch = block.number;
@@ -138,10 +141,10 @@ contract ProofSetService {
   // an escrow will run the sync
   function sync(uint256 ID) public virtual returns (uint256) {
     // require that the owner can call this
-    uint256 faults = proofSets[ID].faults.length;
-    delete proofSets[ID].faults;
+    uint256 faultsToDate = faults[ID].length;
+    delete faults[ID];
 
-    return faults;
+    return faultsToDate;
   }
 
   // terminate a dataset 
@@ -175,7 +178,7 @@ contract DealStoredOnchain is ProofSetService {
   }
 
   function update (uint256 proofSetID, uint256[] calldata removeDeals, Deal[] calldata newDeals) public virtual {
-    require(currentFaults(proofSetID) > 0, "Proof set is faulty, can not be updated");
+    require(currentFaults(proofSetID) == 0, "Proof set is faulty, can not be updated");
     uint proofSetLength = dealsMap[proofSetID].length;
 
     for (uint i = 0; i < removeDeals.length; i++) {
@@ -206,13 +209,13 @@ contract DealStoredOnchain is ProofSetService {
       }
     }
 
-    uint index = dealsMap[proofSetID].length -1;
-    for (uint i = removeDeals.length -1; i < newDeals.length; i++) {
+    uint index = dealsMap[proofSetID].length;
+    for (uint i = removeDeals.length; i < newDeals.length; i++) {
       // If there are more new deals than removed deals, add them at the end of the list
       uint256 escrowID = Escrow(escrowAddress).start(newDeals[i]);
       dealsMap[proofSetID].push(escrowID);
-      index++;
       dealsIndex[escrowID] = ProofSetIndex(index, proofSetID);
+      index++;
     }
   }
 }
