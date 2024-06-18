@@ -46,7 +46,8 @@ describe("FWS", function () {
       const { simplePDP, escrow, dealSLA, otherAccount, owner} = await loadFixture(deployAllContractsFixture);
 
       const proofSetID = await simplePDP.create(100)
-      const updateWithADeal = await simplePDP.update(proofSetID.value, [], [{
+
+      await simplePDP.update(proofSetID.value, [], [{
         CID: hre.ethers.encodeBytes32String("hi"),
         client: await otherAccount.getAddress(),
         provider: await owner.getAddress(),
@@ -54,6 +55,8 @@ describe("FWS", function () {
         dealSLA: await dealSLA.getAddress(),
         size: 10,
       }])
+
+      const dealStored = (await escrow.getDeal(0))
     });
   });
 

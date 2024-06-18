@@ -51,10 +51,9 @@ contract Escrow {
   function start(Deal calldata deal) public returns (uint256) {
     // TODO only the provider (via the service) can do this
 
-    IDCounter++;
     deals[IDCounter] = deal;
 
-    return IDCounter;
+    return IDCounter++;
   }
 
   function remove(uint256 dealID) public {
