@@ -13,7 +13,7 @@ describe("FWS", function () {
   // and reset Hardhat Network to that snapshot in every test.
   async function deployAllContractsFixture() {
     // Contracts are deployed using the first signer/account by default
-    const [owner, otherAccount] = await hre.ethers.getSigners();
+    const [owner, provider, client] = await hre.ethers.getSigners();
 
     const Escrow = await hre.ethers.getContractFactory("Escrow");
     const DealSLA = await hre.ethers.getContractFactory("DealSLANoCurrentFault");
@@ -24,7 +24,7 @@ describe("FWS", function () {
 
     const simplePDP = await SimplePDP.deploy(escrow.getAddress());
 
-    return { escrow, dealSLA, simplePDP, owner, otherAccount };
+    return { escrow, dealSLA, simplePDP, owner, provider, client };
   }
 
   describe("Deployment", function () {
@@ -39,24 +39,38 @@ describe("FWS", function () {
       const { simplePDP, escrow, dealSLA } = await loadFixture(deployAllContractsFixture);
 
       const proofSetID = await simplePDP.create(100)
-      const emptyUpdate = await simplePDP.update(proofSetID.value, [], [])
+      await simplePDP.update(proofSetID.value, [], [])
     });
 
     it("Lifecyle", async function () {
-      const { simplePDP, escrow, dealSLA, otherAccount, owner} = await loadFixture(deployAllContractsFixture);
+      const { simplePDP, escrow, dealSLA, provider, client} = await loadFixture(deployAllContractsFixture);
 
-      const proofSetID = await simplePDP.create(100)
+      // provider creates a proofSet withe frequency 100
+      const proofSetID = await simplePDP.connect(provider)
+        .create(100)
 
-      await simplePDP.update(proofSetID.value, [], [{
-        CID: hre.ethers.encodeBytes32String("hi"),
-        client: await otherAccount.getAddress(),
-        provider: await owner.getAddress(),
+      // provider updates the proofset with new deal
+      const newDeals = [{
+        CID: hre.ethers.encodeBytes32String("deal 0"),
+        client: await client.getAddress(),
+        provider: await provider.getAddress(),
         service: await simplePDP.getAddress(),
         dealSLA: await dealSLA.getAddress(),
         size: 10,
-      }])
+      }, {
+        CID: hre.ethers.encodeBytes32String("deal 1"),
+        client: await client.getAddress(),
+        provider: await provider.getAddress(),
+        service: await simplePDP.getAddress(),
+        dealSLA: await dealSLA.getAddress(),
+        size: 10,
+      }]
 
-      const dealStored = (await escrow.getDeal(0))
+      await simplePDP.connect(provider)
+        .update(proofSetID.value, [], newDeals)
+
+      const deal0 = (await escrow.getDeal(0))
+      const deal1 = (await escrow.getDeal(1))
     });
   });
 

@@ -25,7 +25,6 @@ struct ProofSet {
   uint256 frequency; // how often it is proven
   address provider;
   uint256 latestProofEpoch; // epoch when the latest valid proof was received
-  address owner;
 }
 
 // Contracts
@@ -108,7 +107,6 @@ contract ProofSetService {
     // Map the ID to CommD and StorageProvider
     proofSets[ID] = ProofSet({
       frequency: frequency,
-      owner: msg.sender,
       latestProofEpoch: block.number,
       provider: msg.sender
     });
