@@ -3,6 +3,7 @@ pragma solidity >=0.6.12 <0.9.0;
 // Structs
 
 import {PoDSILib, ProofData} from "./PoDSI.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 // -- Deal
 struct Deal {
@@ -46,9 +47,48 @@ contract Escrow {
   mapping(address => uint256) deposits; // ID
 
   uint256 IDCounter;
+  
+  string private constant EIP712_DOMAIN = "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)";
+  bytes32 constant private EIP712_DOMAIN_TYPEHASH = keccak256(abi.encodePacked(EIP712_DOMAIN));
+  string private constant DEAL_TYPE = "Deal(bytes32 CID,address client,address provider,address service,address dealSLA,uint256 size)";
+  bytes32 constant private DEAL_TYPEHASH = keccak256(abi.encodePacked(DEAL_TYPE));
 
-  function start(Deal calldata deal) public returns (uint256) {
+  bytes32 private DOMAIN_SEPARATOR = keccak256(abi.encode(
+        EIP712_DOMAIN_TYPEHASH,
+        keccak256("FWS Escrow"),
+        keccak256("v0.0.1"),
+        1, // replace this with your chain id
+        address(this)
+    ));
+
+  function hashDeal(Deal memory deal) private view returns (bytes32) {
+    return keccak256(abi.encodePacked(
+        "\x19\x01",
+        DOMAIN_SEPARATOR,
+        keccak256(abi.encode(
+            DEAL_TYPEHASH,
+            deal.CID,
+            deal.client,
+            deal.provider,
+            deal.service,
+            deal.dealSLA,
+            deal.size
+        ))
+    ));
+  }
+
+  function verifyDealSignature(Deal memory deal, bytes memory signature) public view returns (address) {
+    bytes32 digest = hashDeal(deal);
+    address signer = ECDSA.recover(digest, signature);
+    require(deal.client == signer, "signer not the same as signature");
+  }
+
+
+
+  function start(Deal calldata deal, bytes calldata signature) public returns (uint256) {
     // TODO only the provider (via the service) can do this
+
+    verifyDealSignature(deal, signature);
 
     deals[IDCounter] = deal;
 
@@ -174,7 +214,7 @@ contract DealStoredOnchain is ProofSetService {
     return currentFaults(dealsIndex[escrowID].proofSetID);
   }
 
-  function update (uint256 proofSetID, uint256[] calldata removeDeals, Deal[] calldata newDeals) public virtual {
+  function update (uint256 proofSetID, uint256[] calldata removeDeals, Deal[] calldata newDeals, bytes[] calldata newDealsSignature) public virtual {
     require(currentFaults(proofSetID) == 0, "Proof set is faulty, can not be updated");
     uint proofSetLength = dealsMap[proofSetID].length;
 
@@ -192,7 +232,7 @@ contract DealStoredOnchain is ProofSetService {
 
       if (i < newDeals.length) {
         // If new deals are added, update the index
-        uint256 newEscrowID = Escrow(escrowAddress).start(newDeals[i]);
+        uint256 newEscrowID = Escrow(escrowAddress).start(newDeals[i], newDealsSignature[i]);
         dealsMap[proofSetID][index] = newEscrowID;
         dealsIndex[escrowID] = ProofSetIndex(index, proofSetID);
 
@@ -209,7 +249,7 @@ contract DealStoredOnchain is ProofSetService {
     uint index = dealsMap[proofSetID].length;
     for (uint i = removeDeals.length; i < newDeals.length; i++) {
       // If there are more new deals than removed deals, add them at the end of the list
-      uint256 escrowID = Escrow(escrowAddress).start(newDeals[i]);
+      uint256 escrowID = Escrow(escrowAddress).start(newDeals[i], newDealsSignature[i]);
       dealsMap[proofSetID].push(escrowID);
       dealsIndex[escrowID] = ProofSetIndex(index, proofSetID);
       index++;

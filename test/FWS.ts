@@ -39,7 +39,7 @@ describe("FWS", function () {
       const { simplePDP, escrow, dealSLA } = await loadFixture(deployAllContractsFixture);
 
       const proofSetID = await simplePDP.create(100)
-      await simplePDP.update(proofSetID.value, [], [])
+      await simplePDP.update(proofSetID.value, [], [], [])
     });
 
     it("Lifecyle", async function () {
@@ -66,8 +66,33 @@ describe("FWS", function () {
         size: 10,
       }]
 
+      const domain = {
+        name: "FWS Escrow",
+        version: "v0.0.1",
+        chainId: 1,
+        verifyingContract: await escrow.getAddress()
+      }
+
+      const types = {
+        Deal: [
+          { name: "CID", type: "bytes32" },
+          { name: "client", type: "address" },
+          { name: "provider", type: "address" },
+          { name: "service", type: "address" },
+          { name: "dealSLA", type: "address" },
+          { name: "size", type: "uint256" },
+        ]
+      };
+
+      // Signed deals
+      const signatures = await Promise.all(newDeals.map(async deal => {
+        const signature = await client.signTypedData(domain, types, deal);
+        return signature;
+      }))
+
       await simplePDP.connect(provider)
-        .update(proofSetID.value, [], newDeals)
+        .update(proofSetID.value, [], newDeals, signatures)
+        
 
       const deal0 = (await escrow.getDeal(0))
       const deal1 = (await escrow.getDeal(1))
