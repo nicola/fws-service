@@ -45,20 +45,23 @@ describe("FWS", function () {
     it("Lifecyle", async function () {
       const { simplePDP, escrow, dealSLA, provider, client} = await loadFixture(deployAllContractsFixture);
 
-      // provider creates a proofSet withe frequency 100
+      // provider creates a proofSet with frequency 100
       const proofSetID = await simplePDP.connect(provider)
         .create(100)
 
-      // provider updates the proofset with new deal
+      // client makes two deals
+      const CID0 = hre.ethers.encodeBytes32String("deal 0")
+      const CID1 = hre.ethers.encodeBytes32String("deal 1")
+
       const newDeals = [{
-        CID: hre.ethers.encodeBytes32String("deal 0"),
+        CID: CID0,
         client: await client.getAddress(),
         provider: await provider.getAddress(),
         service: await simplePDP.getAddress(),
         dealSLA: await dealSLA.getAddress(),
         size: 10,
       }, {
-        CID: hre.ethers.encodeBytes32String("deal 1"),
+        CID: CID1,
         client: await client.getAddress(),
         provider: await provider.getAddress(),
         service: await simplePDP.getAddress(),
@@ -66,6 +69,7 @@ describe("FWS", function () {
         size: 10,
       }]
 
+      // client signs the deals
       const domain = {
         name: "FWS Escrow",
         version: "v0.0.1",
@@ -84,18 +88,22 @@ describe("FWS", function () {
         ]
       };
 
-      // Signed deals
       const signatures = await Promise.all(newDeals.map(async deal => {
         const signature = await client.signTypedData(domain, types, deal);
         return signature;
       }))
 
+      // client sends signed deals to provider
+      // provider posts the new deals and respective signatures 
       await simplePDP.connect(provider)
         .update(proofSetID.value, [], newDeals, signatures)
         
 
+      // new deals are now onchain
       const deal0 = (await escrow.getDeal(0))
       const deal1 = (await escrow.getDeal(1))
+      expect(CID0  == deal0.CID)
+      expect(CID1  == deal1.CID)
     });
   });
 
