@@ -49,6 +49,8 @@ describe("FWS", function () {
       const proofSetID = await simplePDP.connect(provider)
         .create(100)
 
+      const chainId = await escrow.getChainId();
+
       // client makes two deals
       const CID0 = hre.ethers.encodeBytes32String("deal 0")
       const CID1 = hre.ethers.encodeBytes32String("deal 1")
@@ -73,7 +75,7 @@ describe("FWS", function () {
       const domain = {
         name: "FWS Escrow",
         version: "v0.0.1",
-        chainId: 1,
+        chainId: chainId,
         verifyingContract: await escrow.getAddress()
       }
 

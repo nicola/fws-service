@@ -4,6 +4,7 @@ pragma solidity >=0.6.12 <0.9.0;
 
 import {PoDSILib, ProofData} from "./PoDSI.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
 // -- Deal
 struct Deal {
@@ -42,7 +43,7 @@ contract DealSLANoCurrentFault {
 }
 
 // -- Escrow
-contract Escrow {
+contract Escrow is EIP712 {
   mapping(uint escrowID => Deal deal) deals;
   mapping(address => uint256) deposits; // ID
 
@@ -61,20 +62,27 @@ contract Escrow {
         address(this)
     ));
 
+  constructor () EIP712("FWS Escrow", "v0.0.1") { }
+
+  function getChainId() external view returns (uint256) {
+    return block.chainid;
+  }
+
   function hashDeal(Deal memory deal) private view returns (bytes32) {
-    return keccak256(abi.encodePacked(
-        "\x19\x01",
-        DOMAIN_SEPARATOR,
-        keccak256(abi.encode(
-            DEAL_TYPEHASH,
-            deal.CID,
-            deal.client,
-            deal.provider,
-            deal.service,
-            deal.dealSLA,
-            deal.size
-        ))
-    ));
+
+    return _hashTypedDataV4(
+      keccak256(
+        abi.encode(
+          DEAL_TYPEHASH,
+          deal.CID,
+          deal.client,
+          deal.provider,
+          deal.service,
+          deal.dealSLA,
+          deal.size
+        )
+      )
+    );
   }
 
   function verifyDealSignature(Deal memory deal, bytes memory signature) public view returns (address) {
@@ -86,8 +94,9 @@ contract Escrow {
 
 
   function start(Deal calldata deal, bytes calldata signature) public returns (uint256) {
-    // TODO only the provider (via the service) can do this
+    // TODO: what happens if the service is incorrect?
 
+    // require(deal.provider == msg.sender, "deal specifies a different provider");
     verifyDealSignature(deal, signature);
 
     deals[IDCounter] = deal;
