@@ -15,16 +15,41 @@ describe("FWS", function () {
     // Contracts are deployed using the first signer/account by default
     const [owner, provider, client] = await hre.ethers.getSigners();
 
+    // Setup contracts
     const Escrow = await hre.ethers.getContractFactory("Escrow");
     const DealSLA = await hre.ethers.getContractFactory("DealSLANoCurrentFault");
     const SimplePDP = await hre.ethers.getContractFactory("SimplePDPService");
 
     const escrow = await Escrow.deploy();
     const dealSLA = await DealSLA.deploy();
-
     const simplePDP = await SimplePDP.deploy(escrow.getAddress());
 
-    return { escrow, dealSLA, simplePDP, owner, provider, client };
+    const chainId = await escrow.getChainId();
+
+    // Setup ERC712
+    // client signs the deals
+    const domain = {
+      name: "FWS Escrow",
+      version: "v0.0.1",
+      chainId: chainId,
+      verifyingContract: await escrow.getAddress()
+    }
+
+    const types = {
+      Deal: [
+        { name: "CID", type: "bytes32" },
+        { name: "client", type: "address" },
+        { name: "provider", type: "address" },
+        { name: "service", type: "address" },
+        { name: "dealSLA", type: "address" },
+        { name: "size", type: "uint256" },
+      ]
+    };
+    const EIP712 = {domain, types}
+
+    
+
+    return { escrow, dealSLA, simplePDP, owner, provider, client, EIP712 };
   }
 
   describe("Deployment", function () {
@@ -39,17 +64,15 @@ describe("FWS", function () {
       const { simplePDP, escrow, dealSLA } = await loadFixture(deployAllContractsFixture);
 
       const proofSetID = await simplePDP.create(100)
-      await simplePDP.update(proofSetID.value, [], [], [])
+      await simplePDP.updateSync(proofSetID.value, [], [], [])
     });
 
-    it("Lifecyle", async function () {
-      const { simplePDP, escrow, dealSLA, provider, client} = await loadFixture(deployAllContractsFixture);
+    it("Lifecyle Sync", async function () {
+      const { simplePDP, escrow, dealSLA, provider, client, EIP712} = await loadFixture(deployAllContractsFixture);
 
       // provider creates a proofSet with frequency 100
       const proofSetID = await simplePDP.connect(provider)
         .create(100)
-
-      const chainId = await escrow.getChainId();
 
       // client makes two deals
       const CID0 = hre.ethers.encodeBytes32String("deal 0")
@@ -71,34 +94,15 @@ describe("FWS", function () {
         size: 10,
       }]
 
-      // client signs the deals
-      const domain = {
-        name: "FWS Escrow",
-        version: "v0.0.1",
-        chainId: chainId,
-        verifyingContract: await escrow.getAddress()
-      }
-
-      const types = {
-        Deal: [
-          { name: "CID", type: "bytes32" },
-          { name: "client", type: "address" },
-          { name: "provider", type: "address" },
-          { name: "service", type: "address" },
-          { name: "dealSLA", type: "address" },
-          { name: "size", type: "uint256" },
-        ]
-      };
-
       const signatures = await Promise.all(newDeals.map(async deal => {
-        const signature = await client.signTypedData(domain, types, deal);
+        const signature = await client.signTypedData(EIP712.domain, EIP712.types, deal);
         return signature;
       }))
 
       // client sends signed deals to provider
       // provider posts the new deals and respective signatures 
       await simplePDP.connect(provider)
-        .update(proofSetID.value, [], newDeals, signatures)
+        .updateSync(proofSetID.value, [], newDeals, signatures)
         
 
       // new deals are now onchain

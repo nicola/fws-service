@@ -4,7 +4,6 @@ import {PoDSILib, ProofData} from "./PoDSI.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
-// Structs
 // -- Deal
 struct Deal {
     bytes32 CID;
@@ -124,6 +123,7 @@ contract Escrow is EIP712 {
     }
 
     function getDeal(uint256 escrowID) public view returns (Deal memory deal) {
+        require(escrowID < IDCounter, 'ID too big');
         return deals[escrowID];
     }
 
@@ -226,15 +226,18 @@ contract DealStoredOnchain is ProofSetService {
         uint256 proofSetID;
     }
 
-    mapping(uint proofSetID => uint256[] escrowID) dealsMap;
-    mapping(uint256 escrowID => ProofSetIndex psIndex) dealsIndex;
-    address public escrowAddress;
-
     function dealFaults(uint256 escrowID) public view returns (uint) {
         return currentFaults(dealsIndex[escrowID].proofSetID);
     }
 
-    function update(
+    mapping(uint proofSetID => uint256[] escrowID) dealsMap;
+    mapping(uint256 escrowID => ProofSetIndex psIndex) dealsIndex;
+    address public escrowAddress;
+}
+
+contract DealStoredOnchainSync is ProofSetService, DealStoredOnchain {
+
+    function updateSync(
         uint256 proofSetID,
         uint256[] calldata removeDeals,
         Deal[] calldata newDeals,
@@ -299,7 +302,7 @@ contract DealStoredOnchain is ProofSetService {
 // ---- Simple PDP Service
 
 // Finally, this is a usable Simple PDP Service
-contract SimplePDPService is ProofSetService, DealStoredOnchain {
+contract SimplePDPService is ProofSetService, DealStoredOnchainSync {
     constructor(address _escrow) {
         escrowAddress = _escrow;
     }
