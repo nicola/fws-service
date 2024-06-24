@@ -1,11 +1,10 @@
 pragma solidity >=0.6.12 <0.9.0;
 
-// Structs
-
 import {PoDSILib, ProofData} from "./PoDSI.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
+// Structs
 // -- Deal
 struct Deal {
     bytes32 CID;
@@ -55,25 +54,10 @@ contract Escrow is EIP712 {
 
     uint256 IDCounter;
 
-    string private constant EIP712_DOMAIN =
-        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)";
-    bytes32 private constant EIP712_DOMAIN_TYPEHASH =
-        keccak256(abi.encodePacked(EIP712_DOMAIN));
     string private constant DEAL_TYPE =
         "Deal(bytes32 CID,address client,address provider,address service,address dealSLA,uint256 size)";
     bytes32 private constant DEAL_TYPEHASH =
         keccak256(abi.encodePacked(DEAL_TYPE));
-
-    bytes32 private DOMAIN_SEPARATOR =
-        keccak256(
-            abi.encode(
-                EIP712_DOMAIN_TYPEHASH,
-                keccak256("FWS Escrow"),
-                keccak256("v0.0.1"),
-                1, // replace this with your chain id
-                address(this)
-            )
-        );
 
     constructor() EIP712("FWS Escrow", "v0.0.1") {}
 
@@ -105,6 +89,7 @@ contract Escrow is EIP712 {
         bytes32 digest = hashDeal(deal);
         address signer = ECDSA.recover(digest, signature);
         require(deal.client == signer, "signer not the same as signature");
+        return signer;
     }
 
     function start(
@@ -189,7 +174,7 @@ contract ProofSetService {
 
     function currentFaults(
         uint256 ID
-    ) public view virtual returns (uint faults) {
+    ) public view virtual returns (uint) {
         require(ID < IDCounter, "Out of boundary");
         return ((block.number - proofSets[ID].latestProofEpoch) /
             proofSets[ID].frequency);
