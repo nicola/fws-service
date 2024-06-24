@@ -96,6 +96,7 @@ contract Escrow is EIP712 {
         bytes calldata signature
     ) public returns (uint256) {
         // TODO: what happens if the service is incorrect?
+        // TODO: should we put a nonce to the deals so that deals don't get replayed?
 
         // require(deal.provider == msg.sender, "deal specifies a different provider");
         verifyDealSignature(deal, signature);
@@ -106,7 +107,7 @@ contract Escrow is EIP712 {
     }
 
     function remove(uint256 dealID) public {
-        // TODO either the user or the provider can do this
+        // TODO either the provider or the service or the user can do this
 
         Deal memory deal = deals[dealID];
 
@@ -115,6 +116,7 @@ contract Escrow is EIP712 {
             "Cannot remove"
         );
 
+        // TODO: check if this deletes the daal
         delete deals[dealID];
     }
 
